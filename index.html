@@ -192,6 +192,62 @@ body{font-family:'Shippori Mincho','Hiragino Mincho ProN',serif;color:var(--text
 .toast.err{border-color:rgba(200,60,60,.6);color:#f88;}
 @keyframes tIn{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
 @keyframes tOut{to{opacity:0;transform:translateX(-50%) translateY(14px)}}
+
+/* ── 名前登録モーダル ── */
+#name-modal-overlay{
+  position:fixed;inset:0;z-index:10000;
+  background:rgba(2,4,8,.88);
+  display:flex;align-items:center;justify-content:center;
+  backdrop-filter:blur(4px);
+}
+#name-modal{
+  width:min(420px,88vw);
+  background:linear-gradient(160deg,var(--bg3),var(--bg2));
+  border:1px solid var(--border-h);
+  border-radius:14px;
+  padding:32px 28px 26px;
+  box-shadow:0 20px 60px rgba(0,0,0,.6),0 0 40px rgba(201,168,76,.08);
+  text-align:center;
+}
+#name-modal h2{
+  font-size:1.15rem;font-weight:800;color:var(--gold);
+  letter-spacing:.12em;margin-bottom:8px;
+  text-shadow:0 0 14px rgba(201,168,76,.35);
+}
+#name-modal p{
+  font-size:.78rem;color:var(--dim);line-height:1.7;
+  margin-bottom:22px;letter-spacing:.03em;
+}
+#name-modal-input{
+  width:100%;background:var(--input-bg);border:1px solid var(--border);
+  border-radius:8px;color:var(--text);font-family:inherit;
+  font-size:1rem;letter-spacing:.05em;padding:12px 14px;
+  outline:none;text-align:center;transition:border-color .2s;
+}
+#name-modal-input:focus{border-color:var(--gold);}
+#name-modal-status{
+  min-height:1.4em;font-size:.74rem;letter-spacing:.05em;
+  margin-top:10px;color:var(--dimmer);
+}
+#name-modal-status.ok{color:#7ed99a;}
+#name-modal-status.bad{color:#f88;}
+#name-modal-btn{
+  width:100%;margin-top:18px;padding:12px 0;
+  background:linear-gradient(135deg,#9a7520,var(--gold));
+  border:none;border-radius:8px;color:#1a0e00;
+  font-weight:800;font-size:.92rem;letter-spacing:.1em;
+  font-family:inherit;cursor:pointer;transition:all .2s;
+  box-shadow:0 4px 14px rgba(201,168,76,.3);
+}
+#name-modal-btn:hover{filter:brightness(1.08);}
+#name-modal-btn:disabled{opacity:.4;cursor:not-allowed;filter:none;}
+
+/* 登録済みの名前表示（トップバー） */
+#my-name-badge{
+  font-size:.82rem;letter-spacing:.06em;color:var(--gold);
+  padding:6px 14px;border:1px solid var(--border);border-radius:6px;
+  background:rgba(201,168,76,.08);
+}
 </style>
 </head>
 <body>
@@ -201,7 +257,7 @@ body{font-family:'Shippori Mincho','Hiragino Mincho ProN',serif;color:var(--text
   <div id="topbar">
     <h1>⚓ 黒船談話室</h1>
     <div id="topbar-right">
-      <input id="name-input" type="text" maxlength="20" placeholder="お名前を入力…">
+      <span id="my-name-badge">―</span>
       <a id="back-btn" href="index.html">← ゲームに戻る</a>
     </div>
   </div>
@@ -234,6 +290,17 @@ body{font-family:'Shippori Mincho','Hiragino Mincho ProN',serif;color:var(--text
   </div>
 </div>
 
+<!-- 名前登録モーダル -->
+<div id="name-modal-overlay" style="display:none;">
+  <div id="name-modal">
+    <h2>⚓ 入船にあたって</h2>
+    <p>黒船談話室で使うお名前を決めてください。<br>一度決めた名前は他の人と被ることがなく、あなた専用の名前になります。</p>
+    <input id="name-modal-input" type="text" maxlength="20" placeholder="お名前を入力…" autocomplete="off">
+    <div id="name-modal-status"></div>
+    <button id="name-modal-btn" onclick="registerName()">この名前で入船する</button>
+  </div>
+</div>
+
 <script>
 // ── チャンネル定義 ──────────────────────────────────────
 const CHANNELS = [
@@ -248,21 +315,19 @@ const CHANNELS = [
 const API = '/api/chat';
 let currentChannel = 'kurofune';
 let myPlayerId     = localStorage.getItem('kurofunePlayerId') || ('guest_' + Math.random().toString(36).slice(2));
-let myName         = localStorage.getItem('kurofunePlayerName') || localStorage.getItem('kurofune_chat_name') || '';
+let myName         = localStorage.getItem('kurofune_chat_registered_name') || '';
 let pollTimer      = null;
 let lastMsgIds     = new Set();
 let isSending      = false;
+let nameCheckTimer = null;
+
+// guest IDは初回生成時にlocalStorageへ保存しておく（ゲーム側のIDと未連携の場合の保険）
+if (!localStorage.getItem('kurofunePlayerId')) {
+  localStorage.setItem('kurofunePlayerId', myPlayerId);
+}
 
 // ── 初期化 ───────────────────────────────────────────────
 window.addEventListener('DOMContentLoaded', () => {
-  // 名前の復元
-  const nameEl = document.getElementById('name-input');
-  if (myName) nameEl.value = myName;
-  nameEl.addEventListener('input', () => {
-    myName = nameEl.value.trim() || '名無しの船長';
-    localStorage.setItem('kurofune_chat_name', myName);
-  });
-
   // チャンネルリスト構築
   const chList = document.getElementById('ch-list');
   CHANNELS.forEach(ch => {
@@ -279,9 +344,88 @@ window.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
   });
 
-  // 最初のチャンネルを読み込む
-  switchChannel('kurofune');
+  // 名前登録モーダルの入力監視（リアルタイム重複チェック）
+  const modalInput = document.getElementById('name-modal-input');
+  modalInput.addEventListener('input', () => {
+    clearTimeout(nameCheckTimer);
+    const val = modalInput.value.trim();
+    const statusEl = document.getElementById('name-modal-status');
+    const btn = document.getElementById('name-modal-btn');
+    if (!val) { statusEl.textContent = ''; statusEl.className=''; btn.disabled = true; return; }
+    statusEl.textContent = '確認中…'; statusEl.className = '';
+    btn.disabled = true;
+    nameCheckTimer = setTimeout(() => checkNameAvailability(val), 400);
+  });
+  modalInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); registerName(); }
+  });
+
+  // 既に名前を登録済みかどうかで分岐
+  if (myName) {
+    document.getElementById('my-name-badge').textContent = myName;
+    switchChannel('kurofune');
+  } else {
+    document.getElementById('name-modal-overlay').style.display = 'flex';
+    modalInput.focus();
+  }
 });
+
+// ── 名前の利用可否チェック ─────────────────────────────────
+async function checkNameAvailability(name) {
+  const statusEl = document.getElementById('name-modal-status');
+  const btn = document.getElementById('name-modal-btn');
+  try {
+    const res = await fetch(`${API}?action=check-name&name=${encodeURIComponent(name)}`);
+    const data = await res.json();
+    if (data.error) {
+      statusEl.textContent = data.error; statusEl.className = 'bad'; btn.disabled = true;
+      return;
+    }
+    if (data.available) {
+      statusEl.textContent = '✓ この名前は使用できます'; statusEl.className = 'ok'; btn.disabled = false;
+    } else {
+      statusEl.textContent = '✕ その名前はすでに使われています'; statusEl.className = 'bad'; btn.disabled = true;
+    }
+  } catch (e) {
+    statusEl.textContent = '確認に失敗しました。もう一度お試しください'; statusEl.className = 'bad'; btn.disabled = true;
+  }
+}
+
+// ── 名前登録 ───────────────────────────────────────────────
+async function registerName() {
+  const input = document.getElementById('name-modal-input');
+  const btn = document.getElementById('name-modal-btn');
+  const statusEl = document.getElementById('name-modal-status');
+  const name = input.value.trim();
+  if (!name || btn.disabled) return;
+
+  btn.disabled = true;
+  statusEl.textContent = '登録中…'; statusEl.className = '';
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'register-name', playerId: myPlayerId, playerName: name }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      myName = data.name;
+      localStorage.setItem('kurofune_chat_registered_name', myName);
+      document.getElementById('my-name-badge').textContent = myName;
+      document.getElementById('name-modal-overlay').style.display = 'none';
+      switchChannel('kurofune');
+    } else if (data.taken) {
+      statusEl.textContent = '✕ その名前はすでに使われています'; statusEl.className = 'bad';
+    } else {
+      statusEl.textContent = data.error || '登録に失敗しました'; statusEl.className = 'bad';
+    }
+  } catch (e) {
+    statusEl.textContent = 'ネットワークエラーが発生しました'; statusEl.className = 'bad';
+  } finally {
+    btn.disabled = false;
+  }
+}
 
 // ── チャンネル切り替え ───────────────────────────────────
 function switchChannel(id) {
@@ -369,11 +513,14 @@ function renderMessages(messages) {
 // ── メッセージ送信 ───────────────────────────────────────
 async function sendMessage() {
   if (isSending) return;
+  if (!myName) {
+    document.getElementById('name-modal-overlay').style.display = 'flex';
+    document.getElementById('name-modal-input').focus();
+    return;
+  }
   const input = document.getElementById('msg-input');
   const msg   = input.value.trim();
   if (!msg) return;
-
-  const name = document.getElementById('name-input').value.trim() || '名無しの船長';
 
   isSending = true;
   document.getElementById('send-btn').disabled = true;
@@ -385,7 +532,7 @@ async function sendMessage() {
       body: JSON.stringify({
         channel:    currentChannel,
         playerId:   myPlayerId,
-        playerName: name,
+        playerName: myName,
         message:    msg,
       }),
     });
@@ -396,6 +543,9 @@ async function sendMessage() {
       await fetchMessages();
       const list = document.getElementById('msg-list');
       list.scrollTop = list.scrollHeight;
+    } else if (data.needsName) {
+      toast('先に名前を登録してください', true);
+      document.getElementById('name-modal-overlay').style.display = 'flex';
     } else {
       toast(data.error || '送信に失敗しました', true);
     }
