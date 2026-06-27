@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>黒船談話室</title>
+<link href="https://fonts.googleapis.com/css2?family=Shippori+Mincho:wght@400;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gold:#c9a84c; --gold-lt:#e8cc7a;
+  --bg:#06090e; --bg2:#0b1018; --bg3:#101620;
+  --border:rgba(201,168,76,.18); --border-h:rgba(201,168,76,.38);
+  --text:#e8e4dc; --dim:rgba(232,228,220,.52); --dimmer:rgba(232,228,220,.28);
+  --ch-active-bg:rgba(201,168,76,.12);
+  --msg-bg:rgba(255,255,255,.03);
+  --msg-bg-me:rgba(201,168,76,.09);
+  --input-bg:rgba(0,0,0,.4);
+  --radius:8px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);}
+body{font-family:'Shippori Mincho','Hiragino Mincho ProN',serif;color:var(--text);}
+
+/* ── レイアウト ── */
+#app{width:100vw;height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+/* ── トップバー ── */
+#topbar{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 22px;
+  background:rgba(0,0,0,.55);
+  border-bottom:1px solid var(--border);
+  backdrop-filter:blur(6px);
+  flex-shrink:0;
+}
+#topbar h1{font-size:1.1rem;font-weight:800;color:var(--gold);letter-spacing:.25em;text-shadow:0 0 14px rgba(201,168,76,.4);}
+#topbar-right{display:flex;align-items:center;gap:12px;}
+#name-input{
+  background:var(--input-bg);border:1px solid var(--border);border-radius:6px;
+  color:var(--text);font-family:inherit;font-size:.82rem;letter-spacing:.06em;
+  padding:6px 12px;outline:none;width:160px;transition:border-color .2s;
+}
+#name-input:focus{border-color:var(--gold);}
+#back-btn{
+  font-size:.75rem;font-weight:700;letter-spacing:.1em;
+  border:1px solid var(--border);border-radius:6px;
+  background:rgba(0,0,0,.3);color:var(--dim);
+  padding:6px 14px;cursor:pointer;font-family:inherit;
+  transition:all .2s;text-decoration:none;display:inline-block;
+}
+#back-btn:hover{border-color:var(--border-h);color:var(--gold);}
+
+/* ── メインエリア ── */
+#main{flex:1;display:flex;overflow:hidden;}
+
+/* ── チャンネルリスト ── */
+#ch-list{
+  width:210px;flex-shrink:0;
+  display:flex;flex-direction:column;
+  border-right:1px solid var(--border);
+  background:rgba(0,0,0,.35);
+  overflow-y:auto;
+  padding:14px 0;
+}
+.ch-label{
+  font-size:.62rem;font-weight:800;letter-spacing:.18em;
+  color:var(--dimmer);padding:6px 16px 4px;text-transform:uppercase;
+}
+.ch-item{
+  display:flex;align-items:center;gap:10px;
+  padding:9px 16px;cursor:pointer;
+  font-size:.88rem;color:var(--dim);
+  border-left:3px solid transparent;
+  transition:all .18s;
+}
+.ch-item:hover{background:rgba(201,168,76,.06);color:var(--text);}
+.ch-item.active{
+  background:var(--ch-active-bg);
+  color:var(--gold);font-weight:700;
+  border-left-color:var(--gold);
+}
+.ch-hash{font-size:1.05rem;opacity:.7;}
+.ch-desc{font-size:.62rem;color:var(--dimmer);margin-top:2px;line-height:1.35;}
+
+/* ── チャットエリア ── */
+#chat-area{flex:1;display:flex;flex-direction:column;overflow:hidden;}
+
+/* チャンネルヘッダ */
+#ch-header{
+  padding:12px 22px;
+  border-bottom:1px solid var(--border);
+  background:rgba(0,0,0,.3);
+  flex-shrink:0;
+}
+#ch-header-name{font-size:1rem;font-weight:800;color:var(--gold);letter-spacing:.1em;}
+#ch-header-desc{font-size:.72rem;color:var(--dim);margin-top:3px;letter-spacing:.05em;}
+
+/* メッセージリスト */
+#msg-list{
+  flex:1;overflow-y:auto;
+  padding:16px 20px;
+  display:flex;flex-direction:column;gap:4px;
+  scrollbar-width:thin;scrollbar-color:rgba(201,168,76,.2) transparent;
+}
+#msg-list::-webkit-scrollbar{width:4px;}
+#msg-list::-webkit-scrollbar-thumb{background:rgba(201,168,76,.25);border-radius:2px;}
+
+.msg{
+  display:flex;align-items:flex-start;gap:10px;
+  padding:7px 12px;border-radius:var(--radius);
+  background:var(--msg-bg);
+  transition:background .15s;
+}
+.msg:hover{background:rgba(255,255,255,.05);}
+.msg.is-me{background:var(--msg-bg-me);}
+
+.msg-avatar{
+  width:32px;height:32px;border-radius:50%;flex-shrink:0;
+  background:linear-gradient(135deg,#2a1508,#4a2a10);
+  border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-size:.85rem;font-weight:800;color:var(--gold);
+  user-select:none;
+}
+.msg-body{flex:1;min-width:0;}
+.msg-header{display:flex;align-items:baseline;gap:8px;margin-bottom:3px;}
+.msg-name{font-size:.82rem;font-weight:800;color:var(--gold);letter-spacing:.04em;}
+.msg-name.is-me{color:#7ec8e3;}
+.msg-time{font-size:.64rem;color:var(--dimmer);}
+.msg-text{font-size:.88rem;color:var(--text);line-height:1.6;word-break:break-word;white-space:pre-wrap;}
+
+/* 区切り線（日付変わり目など） */
+.msg-divider{
+  display:flex;align-items:center;gap:12px;
+  padding:10px 0 6px;font-size:.65rem;color:var(--dimmer);letter-spacing:.1em;
+}
+.msg-divider::before,.msg-divider::after{content:'';flex:1;height:1px;background:var(--border);}
+
+/* ローディング・空 */
+.msg-status{
+  text-align:center;font-size:.78rem;color:var(--dimmer);
+  letter-spacing:.1em;padding:32px 0;line-height:1.9;
+}
+
+/* 入力エリア */
+#input-area{
+  padding:14px 20px;
+  border-top:1px solid var(--border);
+  background:rgba(0,0,0,.4);
+  flex-shrink:0;
+}
+#input-row{display:flex;gap:10px;align-items:flex-end;}
+#msg-input{
+  flex:1;
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  color:var(--text);
+  font-family:inherit;font-size:.9rem;
+  padding:10px 14px;
+  outline:none;resize:none;
+  min-height:42px;max-height:120px;
+  transition:border-color .2s;
+  line-height:1.5;
+}
+#msg-input:focus{border-color:var(--gold);}
+#msg-input::placeholder{color:var(--dimmer);}
+#send-btn{
+  padding:10px 20px;
+  background:linear-gradient(135deg,#9a7520,var(--gold));
+  border:none;border-radius:var(--radius);
+  color:#1a0e00;font-weight:800;font-size:.85rem;
+  letter-spacing:.08em;font-family:inherit;
+  cursor:pointer;transition:all .2s;white-space:nowrap;
+  box-shadow:0 4px 12px rgba(201,168,76,.25);
+}
+#send-btn:hover{filter:brightness(1.1);box-shadow:0 6px 16px rgba(201,168,76,.35);}
+#send-btn:disabled{opacity:.4;cursor:not-allowed;}
+#input-hint{
+  font-size:.63rem;color:var(--dimmer);
+  margin-top:6px;letter-spacing:.06em;
+}
+
+/* トースト */
+.toast{
+  position:fixed;bottom:22px;left:50%;transform:translateX(-50%);
+  background:rgba(8,16,26,.96);border:1px solid rgba(201,168,76,.5);
+  color:var(--gold);padding:9px 20px;border-radius:6px;
+  font-size:.80rem;letter-spacing:.1em;z-index:9999;pointer-events:none;
+  animation:tIn .3s ease,tOut .4s ease 2.5s forwards;
+}
+.toast.err{border-color:rgba(200,60,60,.6);color:#f88;}
+@keyframes tIn{from{opacity:0;transform:translateX(-50%) translateY(14px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes tOut{to{opacity:0;transform:translateX(-50%) translateY(14px)}}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- トップバー -->
+  <div id="topbar">
+    <h1>⚓ 黒船談話室</h1>
+    <div id="topbar-right">
+      <input id="name-input" type="text" maxlength="20" placeholder="お名前を入力…">
+      <a id="back-btn" href="index.html">← ゲームに戻る</a>
+    </div>
+  </div>
+
+  <div id="main">
+
+    <!-- チャンネルリスト -->
+    <div id="ch-list">
+      <div class="ch-label">チャンネル</div>
+    </div>
+
+    <!-- チャットエリア -->
+    <div id="chat-area">
+      <div id="ch-header">
+        <div id="ch-header-name"># 黒船クリッカー</div>
+        <div id="ch-header-desc">いわずと知れた黒船クリッカーについて話す</div>
+      </div>
+      <div id="msg-list">
+        <div class="msg-status">読み込み中…</div>
+      </div>
+      <div id="input-area">
+        <div id="input-row">
+          <textarea id="msg-input" placeholder="#黒船クリッカー にメッセージを送る…" rows="1"></textarea>
+          <button id="send-btn" onclick="sendMessage()">送信</button>
+        </div>
+        <div id="input-hint">Enter で送信 / Shift+Enter で改行 ／ 最大300文字</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── チャンネル定義 ──────────────────────────────────────
+const CHANNELS = [
+  { id:'kurofune', label:'黒船クリッカー', emoji:'🚢', desc:'いわずと知れた黒船クリッカーについて話す' },
+  { id:'study',    label:'勉強',           emoji:'📚', desc:'みんなで知識を共有しましょう' },
+  { id:'casual',   label:'雑談',           emoji:'💬', desc:'何でも話しましょう' },
+  { id:'game',     label:'ゲーム',         emoji:'🎮', desc:'好きなゲームを話しましょう' },
+  { id:'request',  label:'要望',           emoji:'📝', desc:'黒船クリッカーで要望があればここに書いてください' },
+];
+
+// ── 状態 ────────────────────────────────────────────────
+const API = '/api/chat';
+let currentChannel = 'kurofune';
+let myPlayerId     = localStorage.getItem('kurofunePlayerId') || ('guest_' + Math.random().toString(36).slice(2));
+let myName         = localStorage.getItem('kurofunePlayerName') || localStorage.getItem('kurofune_chat_name') || '';
+let pollTimer      = null;
+let lastMsgIds     = new Set();
+let isSending      = false;
+
+// ── 初期化 ───────────────────────────────────────────────
+window.addEventListener('DOMContentLoaded', () => {
+  // 名前の復元
+  const nameEl = document.getElementById('name-input');
+  if (myName) nameEl.value = myName;
+  nameEl.addEventListener('input', () => {
+    myName = nameEl.value.trim() || '名無しの船長';
+    localStorage.setItem('kurofune_chat_name', myName);
+  });
+
+  // チャンネルリスト構築
+  const chList = document.getElementById('ch-list');
+  CHANNELS.forEach(ch => {
+    const item = document.createElement('div');
+    item.className = 'ch-item' + (ch.id === currentChannel ? ' active' : '');
+    item.id = 'ch-' + ch.id;
+    item.onclick = () => switchChannel(ch.id);
+    item.innerHTML = `<span class="ch-hash">${ch.emoji}</span><div><div>${ch.label}</div><div class="ch-desc">${ch.desc}</div></div>`;
+    chList.appendChild(item);
+  });
+
+  // Enter キーで送信
+  document.getElementById('msg-input').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  });
+
+  // 最初のチャンネルを読み込む
+  switchChannel('kurofune');
+});
+
+// ── チャンネル切り替え ───────────────────────────────────
+function switchChannel(id) {
+  currentChannel = id;
+  const ch = CHANNELS.find(c => c.id === id);
+
+  document.querySelectorAll('.ch-item').forEach(el => el.classList.remove('active'));
+  const chEl = document.getElementById('ch-' + id);
+  if (chEl) chEl.classList.add('active');
+
+  document.getElementById('ch-header-name').textContent = '# ' + ch.label;
+  document.getElementById('ch-header-desc').textContent = ch.desc;
+  document.getElementById('msg-input').placeholder = `#${ch.label} にメッセージを送る…`;
+
+  lastMsgIds.clear();
+  document.getElementById('msg-list').innerHTML = '<div class="msg-status">読み込み中…</div>';
+
+  if (pollTimer) clearInterval(pollTimer);
+  fetchMessages();
+  pollTimer = setInterval(fetchMessages, 3000);
+}
+
+// ── メッセージ取得 ───────────────────────────────────────
+async function fetchMessages() {
+  try {
+    const res  = await fetch(`${API}?channel=${currentChannel}`);
+    const data = await res.json();
+    if (!data.messages) return;
+    renderMessages(data.messages);
+  } catch (e) {
+    console.error('[chat] fetch error', e);
+  }
+}
+
+// ── メッセージ描画 ───────────────────────────────────────
+function renderMessages(messages) {
+  const list   = document.getElementById('msg-list');
+  const isNew  = messages.some(m => !lastMsgIds.has(m.id));
+  if (!isNew && lastMsgIds.size > 0) return; // 変化なしなら再描画しない
+
+  const wasAtBottom = list.scrollHeight - list.scrollTop <= list.clientHeight + 40;
+
+  list.innerHTML = '';
+  lastMsgIds.clear();
+
+  if (!messages.length) {
+    list.innerHTML = '<div class="msg-status">まだメッセージがありません。<br>最初の一言を送ってみましょう！</div>';
+    return;
+  }
+
+  let prevDate = '';
+  messages.forEach(m => {
+    lastMsgIds.add(m.id);
+
+    const date = new Date(m.ts).toLocaleDateString('ja-JP', { month:'long', day:'numeric', weekday:'short' });
+    if (date !== prevDate) {
+      const div = document.createElement('div');
+      div.className = 'msg-divider';
+      div.textContent = date;
+      list.appendChild(div);
+      prevDate = date;
+    }
+
+    const isMe = m.playerId === myPlayerId;
+    const initial = (m.name || '?')[0].toUpperCase();
+    const timeStr = new Date(m.ts).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit' });
+
+    const el = document.createElement('div');
+    el.className = 'msg' + (isMe ? ' is-me' : '');
+    el.innerHTML = `
+      <div class="msg-avatar">${initial}</div>
+      <div class="msg-body">
+        <div class="msg-header">
+          <span class="msg-name${isMe ? ' is-me' : ''}">${escHtml(m.name)}</span>
+          <span class="msg-time">${timeStr}</span>
+        </div>
+        <div class="msg-text">${escHtml(m.msg)}</div>
+      </div>`;
+    list.appendChild(el);
+  });
+
+  if (wasAtBottom) list.scrollTop = list.scrollHeight;
+}
+
+// ── メッセージ送信 ───────────────────────────────────────
+async function sendMessage() {
+  if (isSending) return;
+  const input = document.getElementById('msg-input');
+  const msg   = input.value.trim();
+  if (!msg) return;
+
+  const name = document.getElementById('name-input').value.trim() || '名無しの船長';
+
+  isSending = true;
+  document.getElementById('send-btn').disabled = true;
+
+  try {
+    const res = await fetch(API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        channel:    currentChannel,
+        playerId:   myPlayerId,
+        playerName: name,
+        message:    msg,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.success) {
+      input.value = '';
+      input.style.height = '';
+      await fetchMessages();
+      const list = document.getElementById('msg-list');
+      list.scrollTop = list.scrollHeight;
+    } else {
+      toast(data.error || '送信に失敗しました', true);
+    }
+  } catch (e) {
+    toast('ネットワークエラーが発生しました', true);
+  } finally {
+    isSending = false;
+    document.getElementById('send-btn').disabled = false;
+    input.focus();
+  }
+}
+
+// ── ユーティリティ ───────────────────────────────────────
+function escHtml(str) {
+  const d = document.createElement('div');
+  d.textContent = str;
+  return d.innerHTML;
+}
+
+function toast(msg, isErr) {
+  const el = document.createElement('div');
+  el.className = 'toast' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 3100);
+}
+
+// テキストエリアの高さを内容に合わせて自動調整
+document.addEventListener('DOMContentLoaded', () => {
+  const ta = document.getElementById('msg-input');
+  ta.addEventListener('input', () => {
+    ta.style.height = 'auto';
+    ta.style.height = Math.min(ta.scrollHeight, 120) + 'px';
+  });
+});
+</script>
+</body>
+</html>
